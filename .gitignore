@@ -1,0 +1,4 @@
+datasets
+ChangeNet
+**/*.jpg
+**/.ipynb_checkpoints
