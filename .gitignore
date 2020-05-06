@@ -2,3 +2,4 @@ datasets
 ChangeNet
 **/*.jpg
 **/.ipynb_checkpoints
+setup.cfg
