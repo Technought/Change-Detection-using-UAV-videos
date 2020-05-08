@@ -628,22 +628,42 @@ def detect_changes(ns,l):
 def yolo(ns):
     global net, outputlayers, classes
 
-    # load weights and configuration files
-    net = cv2.dnn.readNet(ns.yolo_weights, ns.yolo_config)
+    try:
+        # load weights and configuration files
+        net = cv2.dnn.readNet(ns.yolo_weights, ns.yolo_config)
+    except:
+        tkMessageBox.showinfo("YOLO files", "YOLO weights or config file not found in Yolo folder")
+        ns.abort_flag = True
+        return
 
-    # set computation backend
-    net.setPreferableBackend(ns.computation_backend)
+    try:
+        # set computation backend
+        net.setPreferableBackend(ns.computation_backend)
+    except:
+        tkMessageBox.showinfo("YOLO Backend", "Selected YOLO backend is not available on your device")
+        ns.abort_flag = True
+        return
 
-    # set target compurting device
-    net.setPreferableTarget(ns.target_device)
+    try:
+        # set target compurting device
+        net.setPreferableTarget(ns.target_device)
+    except:
+        tkMessageBox.showinfo("YOLO Backend", "Selected YOLO target is not available on your device")
+        ns.abort_flag = True
+        return
 
     # define output layers
     layer_names = net.getLayerNames()
     outputlayers = [layer_names[i[0]-1] for i in net.getUnconnectedOutLayers()]
 
-    # load object classes
-    with open(ns.yolo_classes, "r") as f:
-        classes = [line.strip() for line in f.readlines()]
+    try:
+        # load object classes
+        with open(ns.yolo_classes, "r") as f:
+            classes = [line.strip() for line in f.readlines()]
+    except:
+        tkMessageBox.showinfo("YOLO classes", "YOLO classes file not found in Yolo folder")
+        ns.abort_flag = True
+        return
 
 class appUI(Frame):
 
