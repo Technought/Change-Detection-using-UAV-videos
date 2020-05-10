@@ -643,7 +643,7 @@ def detect_changes(ns,l):
         print(obj_pairs, file=output_log)
         print("\n", file=output_log)
         print("score_history", file=output_log)
-        print(mid_frames2, file=output_log)
+        print(score_history, file=output_log)
         print("\n", file=output_log)
         output_log.flush()
         os.fsync(output_log)
