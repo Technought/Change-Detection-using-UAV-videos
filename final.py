@@ -28,8 +28,7 @@ from multiprocessing import Process, Queue, Manager
 from queue import Empty
 
 # Global Variables
-# manager = None
-DELAY1 = 150
+DELAY1 = 150    # Delay for change detection process
 
 # ********************************************** Change Detection **********************************************
 
@@ -401,6 +400,31 @@ class CentroidTracker():
 
 def detect_changes(ns,l):
     global net, outputlayers, classes
+
+    output_log_filename = os.path.join(os.path.dirname(ns.ref_path), os.path.basename(ns.ref_path)[0:-4]+"_"+os.path.basename(ns.video_path)[0:-4]+"_output.txt")
+    output_log = open(output_log_filename, "w") if ns.write_flag else None
+    if ns.write_flag:
+        print("Reference Video path", file=output_log)
+        print(ns.ref_path, file=output_log)
+        print("\n", file=output_log)
+        print("New Video path", file=output_log)
+        print(ns.video_path, file=output_log)
+        print("\n", file=output_log)
+        print("CONF_THRESHOLD", file=output_log)
+        print(ns.CONF_THRESHOLD, file=output_log)
+        print("\n", file=output_log)
+        print("NMS_THRESHOLD", file=output_log)
+        print(ns.NMS_THRESHOLD, file=output_log)
+        print("\n", file=output_log)
+        print("max_disappearing_ref", file=output_log)
+        print(ns.max_disappearing_ref, file=output_log)
+        print("\n", file=output_log)
+        print("max_disappearing_video", file=output_log)
+        print(ns.max_disappearing_video, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
+
     print("Initializing YOLO")
     ns.text_to_log += "Initializing YOLO\n"
     yolo(ns)
@@ -411,6 +435,10 @@ def detect_changes(ns,l):
     ns.text_to_log += "Loading Reference video frames\n"
 
     cap = cv2.VideoCapture(ns.ref_path)
+    ns.width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    ns.height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    if(ns.ref_rotation == 0 or ns.ref_rotation == 2):
+        ns.width,ns.height = (ns.height, ns.width)
     ref_data = []
     i = 1
     while cap.isOpened():
@@ -435,6 +463,11 @@ def detect_changes(ns,l):
     if ns.abort_flag: return
 
     cap = cv2.VideoCapture(ns.video_path)
+    ns.width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    ns.height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    ns.fps = cap.get(cv2.CAP_PROP_FPS)
+    if(ns.video_rotation == 0 or ns.video_rotation == 2):
+        ns.width,ns.height = (ns.height, ns.width)
     video_data = []
     i = 1
     while cap.isOpened():
@@ -461,6 +494,8 @@ def detect_changes(ns,l):
 
     ref_objs = []
     i=1
+    ns.width = ref_data[0].shape[1]
+    ns.height = ref_data[0].shape[0]
     for image in ref_data:
         if ns.abort_flag: return None
         # Create a 4D blob from a frame.
@@ -482,13 +517,23 @@ def detect_changes(ns,l):
         ns.output_image = copy.deepcopy(output_image1)
         print(i)
         i+=1
- 
+    
+    if ns.write_flag:
+        print("Objects detected in reference video", file=output_log)
+        for i in ref_objs:
+            print(i, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
+
     if ns.abort_flag: return
     print("Finding objects in New video using YOLO")
     ns.text_to_log += "Finding objects in New video using YOLO\n"
 
     video_objs = []
     i = 1
+    ns.width = video_data[0].shape[1]
+    ns.height = video_data[0].shape[0]
     for image in video_data:
         if ns.abort_flag: return None
         # Create a 4D blob from a frame.
@@ -511,6 +556,13 @@ def detect_changes(ns,l):
         print(i)
         i+=1
 
+    if ns.write_flag:
+        print("Objects detected in New video", file=output_log)
+        for i in video_objs:
+            print(i, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
 
     # pass reference video detections to object tracker
     if ns.abort_flag: return
@@ -524,6 +576,18 @@ def detect_changes(ns,l):
     ref_ct.deregister_all()
     ref_obj_lifetime = ref_ct.lifetime
 
+    if ns.write_flag:
+        print("ref_obj_track", file=output_log)
+        for i in ref_obj_track:
+            print(i, file=output_log)
+        print("\n", file=output_log)
+        print("ref_obj_lifetime", file=output_log)
+        for i in ref_obj_lifetime:
+            print(i, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
+
     # pass second video detections to object tracker
     if ns.abort_flag: return
     print("Tracking objects in New video")
@@ -536,10 +600,32 @@ def detect_changes(ns,l):
     video_ct.deregister_all()
     video_obj_lifetime = video_ct.lifetime
 
+    if ns.write_flag:
+        print("video_obj_track", file=output_log)
+        for i in video_obj_track:
+            print(i, file=output_log)
+        print("\n", file=output_log)
+        print("video_obj_lifetime", file=output_log)
+        for i in video_obj_lifetime:
+            print(i, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
+
     # objects are found with their full
     if ns.abort_flag: return
     mid_frames1 = [round((start[0]+end[0])/2) for objID, start, end in ref_obj_lifetime]
     mid_frames2 = [round((start[0]+end[0])/2) for objID, start, end in video_obj_lifetime]
+
+    if ns.write_flag:
+        print("mid_frames1", file=output_log)
+        print(mid_frames1, file=output_log)
+        print("\n", file=output_log)
+        print("mid_frames2", file=output_log)
+        print(mid_frames2, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
 
     # matching objects in both videos 
     if ns.abort_flag: return
@@ -549,8 +635,18 @@ def detect_changes(ns,l):
     if len(ref_obj_lifetime) < len(video_obj_lifetime):
         obj_pairs, score_history = couple_objectIDs(ns,ref_data, video_data, ref_obj_lifetime, video_obj_lifetime, ref_obj_track, video_obj_track, mid_frames1,mid_frames2)
     else:
-        obj_pairs, score_history = couple_objectIDs(ns,ns.video_data, ns.ref_data, video_obj_lifetime, ref_obj_lifetime, video_obj_track, ref_obj_track, mid_frames2, mid_frames1)
+        obj_pairs, score_history = couple_objectIDs(ns,video_data, ref_data, video_obj_lifetime, ref_obj_lifetime, video_obj_track, ref_obj_track, mid_frames2, mid_frames1)
         obj_pairs = dict([(value, key) for key, value in obj_pairs.items()])
+
+    if ns.write_flag:
+        print("obj_pairs", file=output_log)
+        print(obj_pairs, file=output_log)
+        print("\n", file=output_log)
+        print("score_history", file=output_log)
+        print(mid_frames2, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
 
     #
     if ns.abort_flag: return
@@ -559,10 +655,20 @@ def detect_changes(ns,l):
     new_objs = [x for x in range(0,len(video_obj_lifetime)) if x not in obj_pairs.values()]
     ns.text_to_log += "Number of new objects: "+str(len(new_objs))+"\n"
 
+    if ns.write_flag:
+        print("missing_objs", file=output_log)
+        print(missing_objs, file=output_log)
+        print("\n", file=output_log)
+        print("new_objs", file=output_log)
+        print(new_objs, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
+
     # approximating location of missing objects
     if ns.abort_flag: return
     approx_missing = []
-    if not len(missing_objs):
+    if len(missing_objs):
         ns.text_to_log += "Approximating location of missing objects\n"
     for obj in missing_objs:
         if ns.abort_flag: return
@@ -581,7 +687,9 @@ def detect_changes(ns,l):
             i_after_ref -= 1
 
         i_before_video = 0
-        while(obj != 0 and video_obj_lifetime[i_before_video][0] != obj_pairs[obj]-1):
+        prev_obj_with_match = obj-1
+        while(prev_obj_with_match>=0 and prev_obj_with_match not in obj_pairs.keys()): prev_obj_with_match-=1
+        while(obj!=0 and video_obj_lifetime[i_before_video][0] != obj_pairs[prev_obj_with_match]):
             i_before_video += 1
         i_after_video = 0
         while(video_obj_lifetime[i_after_video][0] != obj_pairs[ref_obj_lifetime[i_after_ref][0]]):
@@ -593,12 +701,19 @@ def detect_changes(ns,l):
 
         approx_missing.append([obj, approx_start_frame, approx_end_frame, ref_obj_lifetime[i][1][0], ref_obj_lifetime[i][2][0], ref_step_incr])
     
+    if ns.write_flag:
+        print("approx_missing", file=output_log)
+        print(approx_missing, file=output_log)
+        print("\n", file=output_log)
+        output_log.flush()
+        os.fsync(output_log)
+
     if ns.abort_flag: return
     output_frames = copy.deepcopy(video_data)
     
     for mobj in approx_missing:
         video_ptr = mobj[1]
-        ref_ptr = mobj[1]
+        ref_ptr = mobj[3]
         while(video_ptr < mobj[2]):
             if mobj[0] in ref_obj_track[math.floor(ref_ptr)].keys():
                 if ns.abort_flag: return
@@ -612,6 +727,8 @@ def detect_changes(ns,l):
     if ns.abort_flag: return
     print("Displaying results")
     ns.text_to_log += "Displaying results\n"
+    output_video_filename = os.path.join(os.path.dirname(ns.ref_path), os.path.basename(ns.ref_path)[0:-4]+"_"+os.path.basename(ns.video_path)[0:-4]+"_output.avi")
+    out = cv2.VideoWriter(output_video_filename,cv2.VideoWriter_fourcc('M','J','P','G'), ns.fps, (ns.width,ns.height), True) if ns.write_video_flag else None
     for i in range(0,len(video_obj_track)):
         for objID in video_obj_track[i].keys():
             if objID in new_objs:
@@ -619,8 +736,15 @@ def detect_changes(ns,l):
                 cv2.rectangle(output_frames[i], (left, top), (left + width,top + height),(0, 255, 0),2)
                 cv2.putText(output_frames[i], "New", (left, top), cv2.FONT_HERSHEY_SIMPLEX,  
                         0.5, (255,0,0), 1, cv2.LINE_AA)
-                ns.output_image = output_frames[i]
-    ns.text_to_log += "Task completed\n"
+        if out:
+            out.write(output_frames[i])
+        ns.output_image = output_frames[i]
+    if out:
+        out.release()
+    if ns.write_flag:
+        output_log.close()
+
+    ns.text_to_log += "Task completed\n\n"
     ns.running_flag = False
 
 
@@ -796,6 +920,8 @@ class appUI(Frame):
         self.computation_backend_dropdown = OptionMenu(self.root_frame, self.computation_backend_option, *self.computation_backend_choices)
         self.computation_backend_dropdown.config(width=15)
         self.computation_backend_option.trace("w", self.set_computation_backend)
+        self.save_output_file = IntVar()
+        self.save_output_file_checkbutton = Checkbutton(self.root_frame, text="Save output\n video", variable=self.save_output_file)
 
         # fourth row of widgets
         self.target_device_label = Label(self.root_frame, text="Target device")
@@ -805,6 +931,8 @@ class appUI(Frame):
         self.target_device_dropdown = OptionMenu(self.root_frame, self.target_device_option, *self.target_device_choices)
         self.target_device_dropdown.config(width=15)
         self.target_device_option.trace("w", self.set_target_device)
+        self.save_log = IntVar()
+        self.save_log_checkbutton = Checkbutton(self.root_frame, text="Save log", variable=self.save_log)
 
         # fifth row of widgets
         self.conf_threshold_label = Label(self.root_frame, text="CONF_THRESHOLD")
@@ -841,10 +969,12 @@ class appUI(Frame):
         # add third row of widgets to grid
         self.computation_backend_label.grid(row=2, column=0, sticky=W)
         self.computation_backend_dropdown.grid(row=2, column=1, sticky=W)
+        self.save_output_file_checkbutton.grid(row=2, column=2, sticky=W)
 
         # add fourth row of widgets to grid
         self.target_device_label.grid(row=3, column=0, sticky=W)
         self.target_device_dropdown.grid(row=3, column=1, sticky=W)
+        self.save_log_checkbutton.grid(row=3, column=2, sticky=W)
 
         # add fifth row of widgets to grid
         self.conf_threshold_label.grid(row=4, column=0, sticky=W)
@@ -910,7 +1040,7 @@ class appUI(Frame):
             conf_thresh = float(self.conf_threshold_entry.get())
             if not (conf_thresh >= 0 and conf_thresh <= 1):
                 raise Exception("Value not in range")
-            self.ns.CONF_THRESHOLD = conf_thresh
+            ns.CONF_THRESHOLD = conf_thresh
         except:
             tkMessageBox.showinfo("CONF_THRESHOLD", "Value of CONF_THRESHOLD must be between 0 and 1")
             return
@@ -919,22 +1049,22 @@ class appUI(Frame):
             nms_thresh = float(self.nms_threshold_entry.get())
             if not (nms_thresh >= 0 and nms_thresh <= 1):
                 raise Exception("Value not in range")
-            self.ns.NMS_THRESHOLD = nms_thresh
+            ns.NMS_THRESHOLD = nms_thresh
         except:
             tkMessageBox.showinfo("NMS_THRESHOLD", "Value of NMS_THRESHOLD must be between 0 and 1")
             return
 
         try:
-            self.max_dissapeared_ref = int(self.max_disappeared_ref_entry.get())
-            if not (self.max_dissapeared_ref >= 0):
+            ns.max_disappearing_ref = int(self.max_disappeared_ref_entry.get())
+            if not (ns.max_disappearing_ref >= 0):
                 raise Exception("Value not in range")
         except:
             tkMessageBox.showinfo("max_disappeared_ref", "Value of max_disappeared must be an integer greater than or equal to 0")
             return
 
         try:
-            self.max_dissapeared_video = int(self.max_disappeared_video_entry.get())
-            if not (self.max_dissapeared_video >= 0):
+            ns.max_disappearing_video = int(self.max_disappeared_video_entry.get())
+            if not (ns.max_disappearing_video >= 0):
                 raise Exception("Value not in range")
         except:
             tkMessageBox.showinfo("max_disappeared_video", "Value of max_disappeared must be an integer greater than or equal to 0")
@@ -955,6 +1085,12 @@ class appUI(Frame):
         self.run_button.config(state='disabled')
         self.exit_button.config(state='disabled')
         self.ns.running_flag = True
+        if(self.save_output_file.get()):
+            ns.write_video_flag = True
+        if(self.save_log.get()):
+            ns.write_flag = True
+        self.save_output_file_checkbutton.config(state='disabled')
+        self.save_log_checkbutton.config(state='disabled')
 
         self.CP = Process(target=detect_changes, args=(ns,[]))
         self.CP.start()
@@ -967,16 +1103,15 @@ class appUI(Frame):
             self.console_log.insert(INSERT, self.ns.text_to_log)
             self.console_log.config(state="disabled")
             self.ns.text_to_log = ""
-            self.after(DELAY1, self.waitToFinish)
 
             if not type(self.ns.output_image) == type(None):
-                if(self.ns.output_image.shape[0] > self.ns.output_image.shape[1]):
-                    self.ns.output_image = image_resize(ns.output_image, height = 500)
+                if(self.ns.width < self.ns.height):
+                    self.ns.output_image = image_resize(ns.output_image, height = 520)
                 else:
-                    self.ns.output_image = image_resize(self.ns.output_image, width = 500)
+                    self.ns.output_image = image_resize(self.ns.output_image, width = 520)
                 self.output_tkimage = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(self.ns.output_image, cv2.COLOR_BGR2RGB)))
                 self.text_label.config(image=self.output_tkimage)
-
+            self.after(DELAY1, self.waitToFinish)
             return
         else:
             if self.ns.abort_flag:
@@ -996,8 +1131,11 @@ class appUI(Frame):
             self.nms_threshold_entry.config(state='normal')
             self.max_disappeared_ref_entry.config(state='normal')
             self.max_disappeared_video_entry.config(state='normal')
+            self.save_output_file_checkbutton.config(state='normal')
+            self.save_log_checkbutton.config(state='normal')
             self.run_button.config(state='normal')
             self.exit_button.config(state='normal')
+            
 
 def main(ns):
     # Create main window
@@ -1010,7 +1148,7 @@ def main(ns):
     root.geometry(ns.window_size)
 
     # disable resizing of window for user
-    # root_frame.resizable(False, False)
+    root.resizable(False, False)
 
     app = appUI(root, ns)
 
@@ -1032,13 +1170,18 @@ if __name__ == '__main__':
     ns.video_rotation = None
     ns.ref_path = ""
     ns.video_path = ""
+    ns.width = 1280
+    ns.height = 1280
+    ns.fps = 30
     ns.max_disappearing_ref = 10
     ns.max_disappearing_video = 10
     ns.obj_pairs = {}
     ns.score_history = {}
-    ns.window_size = '1200x530+0+0'
+    ns.window_size = '1200x540+0+0'
     ns.abort_flag = False
     ns.running_flag = False
+    ns.write_video_flag = False
+    ns.write_flag = False
     ns.text_to_log = ""
     ns.output_image = None
     main(ns)
