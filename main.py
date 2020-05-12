@@ -678,7 +678,7 @@ def detect_changes(ns,l):
 
         i_before_ref = 0
         while(obj != 0 and ref_obj_lifetime[i_before_ref][0] != obj-1):
-            i_before_ref = +1
+            i_before_ref += 1
         i_after_ref = 0
         while(ref_obj_lifetime[i_after_ref][0] != obj):
             i_after_ref += 1
